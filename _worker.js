@@ -5400,18 +5400,60 @@ function 掩码敏感信息(文本, 前缀长度 = 3, 后缀长度 = 2) {
 	return `${前缀}${'*'.repeat(星号数量)}${后缀}`;
 }
 
+// Cloudflare Workers' Web Crypto runtime does not expose MD5. Keep the
+// historical token format by using a small pure-JS MD5 implementation.
+const MD5_S = [
+	7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22,
+	5, 9, 14, 20, 5, 9, 14, 20, 5, 9, 14, 20, 5, 9, 14, 20,
+	4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23,
+	6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21,
+];
+const MD5_K = Array.from({ length: 64 }, (_, index) => Math.floor(Math.abs(Math.sin(index + 1)) * 0x100000000) | 0);
+
+function md5Hex(文本) {
+	const 输入 = new TextEncoder().encode(String(文本));
+	const 填充长度 = (56 - ((输入.length + 1) % 64) + 64) % 64;
+	const 数据 = new Uint8Array(输入.length + 1 + 填充长度 + 8);
+	数据.set(输入);
+	数据[输入.length] = 0x80;
+	const 位长度 = 输入.length * 8;
+	for (let index = 0; index < 4; index++) 数据[数据.length - 8 + index] = (位长度 >>> (index * 8)) & 0xff;
+
+	let a0 = 0x67452301 | 0, b0 = 0xefcdab89 | 0, c0 = 0x98badcfe | 0, d0 = 0x10325476 | 0;
+	for (let 偏移 = 0; 偏移 < 数据.length; 偏移 += 64) {
+		const 块 = new Int32Array(16);
+		for (let index = 0; index < 16; index++) {
+			const 起点 = 偏移 + index * 4;
+			块[index] = 数据[起点] | (数据[起点 + 1] << 8) | (数据[起点 + 2] << 16) | (数据[起点 + 3] << 24);
+		}
+		let a = a0, b = b0, c = c0, d = d0;
+		for (let index = 0; index < 64; index++) {
+			let f, g;
+			if (index < 16) { f = (b & c) | (~b & d); g = index; }
+			else if (index < 32) { f = (d & b) | (~d & c); g = (5 * index + 1) % 16; }
+			else if (index < 48) { f = b ^ c ^ d; g = (3 * index + 5) % 16; }
+			else { f = c ^ (b | ~d); g = (7 * index) % 16; }
+			const 临时 = d;
+			const 和 = (a + f + MD5_K[index] + 块[g]) | 0;
+			d = c;
+			c = b;
+			b = (b + ((和 << MD5_S[index]) | (和 >>> (32 - MD5_S[index])))) | 0;
+			a = 临时;
+		}
+		a0 = (a0 + a) | 0;
+		b0 = (b0 + b) | 0;
+		c0 = (c0 + c) | 0;
+		d0 = (d0 + d) | 0;
+	}
+	return [a0, b0, c0, d0].map(值 => {
+		let 十六进制 = '';
+		for (let index = 0; index < 4; index++) 十六进制 += ((值 >>> (index * 8)) & 0xff).toString(16).padStart(2, '0');
+		return 十六进制;
+	}).join('');
+}
+
 async function MD5MD5(文本) {
-	const 编码器 = new TextEncoder();
-
-	const 第一次哈希 = await crypto.subtle.digest('MD5', 编码器.encode(文本));
-	const 第一次哈希数组 = Array.from(new Uint8Array(第一次哈希));
-	const 第一次十六进制 = 第一次哈希数组.map(字节 => 字节.toString(16).padStart(2, '0')).join('');
-
-	const 第二次哈希 = await crypto.subtle.digest('MD5', 编码器.encode(第一次十六进制.slice(7, 27)));
-	const 第二次哈希数组 = Array.from(new Uint8Array(第二次哈希));
-	const 第二次十六进制 = 第二次哈希数组.map(字节 => 字节.toString(16).padStart(2, '0')).join('');
-
-	return 第二次十六进制.toLowerCase();
+	return md5Hex(md5Hex(文本).slice(7, 27)).toLowerCase();
 }
 
 function 随机路径(完整节点路径 = "/") {
