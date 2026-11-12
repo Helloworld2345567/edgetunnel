@@ -9,8 +9,8 @@ const 下行Grain包字节 = 32 * 1024, 下行Grain尾部阈值 = 512, 下行Gra
 let TCP并发拨号数 = 2, 反代并发拨号数 = 1, 预加载竞速拨号 = false;
 ///////////////////////////////////////////////////////查杀特征码///////////////////////////////////////////////
 const 特征码字典 = [
-	(Proxy.name + "IP").toUpperCase(),
-	(String.fromCharCode(67, 109) + URL.name[2] + 'i' + URL.name[0]).toLowerCase(),
+	(String(Proxy?.name || 'Proxy') + "IP").toUpperCase(),
+	(String.fromCharCode(67, 109) + String(URL?.name || 'URL')[2] + 'i' + String(URL?.name || 'URL')[0]).toLowerCase(),
 	String(2407 * 300 - 10).split('').reverse().join('')
 ];
 const 汇聚订阅_UA = 'v2rayN/edge' + 'tunnel (https://github.com/' + 特征码字典[1] + '/edge' + 'tunnel)';
@@ -2131,7 +2131,7 @@ async function SS派生主密钥(passwordText, keyLen) {
 		while (result.byteLength < keyLen) {
 			const input = new Uint8Array(prev.byteLength + pwBytes.byteLength);
 			input.set(prev, 0); input.set(pwBytes, prev.byteLength);
-			prev = new Uint8Array(await crypto.subtle.digest('MD5', input));
+			prev = md5Bytes(input);
 			result = 拼接字节数据(result, prev);
 		}
 		return result.slice(0, keyLen);
@@ -4212,7 +4212,7 @@ async function turnConnect(proxy, targetHost, targetPort, TCP连接) {
 			if (!realmBytes || !nonce?.byteLength) throw new Error('TURN authentication challenge is missing realm or nonce');
 
 			const realm = textDecoder.decode(realmBytes);
-			integrityKey = new Uint8Array(await crypto.subtle.digest('MD5', textEncoder.encode(`${proxy.username}:${realm}:${proxy.password}`)));
+			integrityKey = md5Bytes(textEncoder.encode(`${proxy.username}:${realm}:${proxy.password}`));
 			authAttributes = [
 				createTurnStunAttribute(TURN_STUN_ATTR.USERNAME, textEncoder.encode(proxy.username)),
 				createTurnStunAttribute(TURN_STUN_ATTR.REALM, textEncoder.encode(realm)),
@@ -5417,7 +5417,7 @@ const MD5_S = [
 const MD5_K = Array.from({ length: 64 }, (_, index) => Math.floor(Math.abs(Math.sin(index + 1)) * 0x100000000) | 0);
 
 function md5Hex(文本) {
-	const 输入 = new TextEncoder().encode(String(文本));
+	const 输入 = 文本 instanceof Uint8Array ? 文本 : new TextEncoder().encode(String(文本));
 	const 填充长度 = (56 - ((输入.length + 1) % 64) + 64) % 64;
 	const 数据 = new Uint8Array(输入.length + 1 + 填充长度 + 8);
 	数据.set(输入);
@@ -5456,6 +5456,13 @@ function md5Hex(文本) {
 		for (let index = 0; index < 4; index++) 十六进制 += ((值 >>> (index * 8)) & 0xff).toString(16).padStart(2, '0');
 		return 十六进制;
 	}).join('');
+}
+
+function md5Bytes(输入) {
+	const 十六进制 = md5Hex(输入);
+	const 字节 = new Uint8Array(16);
+	for (let index = 0; index < 字节.length; index++) 字节[index] = parseInt(十六进制.slice(index * 2, index * 2 + 2), 16);
+	return 字节;
 }
 
 async function MD5MD5(文本) {
