@@ -9,9 +9,9 @@ const 下行Grain包字节 = 32 * 1024, 下行Grain尾部阈值 = 512, 下行Gra
 let TCP并发拨号数 = 2, 反代并发拨号数 = 1, 预加载竞速拨号 = false;
 ///////////////////////////////////////////////////////查杀特征码///////////////////////////////////////////////
 const 特征码字典 = [
-	(String(Proxy?.name || 'Proxy') + "IP").toUpperCase(),
-	(String.fromCharCode(67, 109) + String(URL?.name || 'URL')[2] + 'i' + String(URL?.name || 'URL')[0]).toLowerCase(),
-	String(2407 * 300 - 10).split('').reverse().join('')
+	'PROXYIP',
+	'cmliu',
+	'090227'
 ];
 const 汇聚订阅_UA = 'v2rayN/edge' + 'tunnel (https://github.com/' + 特征码字典[1] + '/edge' + 'tunnel)';
 ///////////////////////////////////////////////////////主程序入口///////////////////////////////////////////////
